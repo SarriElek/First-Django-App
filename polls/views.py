@@ -32,26 +32,36 @@ class IndexView(generic.ListView):
 
   def get_queryset(self):
     """
-    Return the last five published questions (not including those to be
+    For admin -> Return the last five published questions
+    For the rest of the users -> Return the last five published questions (not including those to be
     published in the future)
     """
-    return Question.objects.filter(pub_date__lte=timezone.now()).order_by('-pub_date')[:5]
+    if isAdmin(self):
+      return Question.objects.order_by('-pub_date')[:5]
+    else :
+      return Question.objects.filter(pub_date__lte=timezone.now()).order_by('-pub_date')[:5]
 
 class DetailView(generic.DetailView):
   model = Question
   template_name = 'polls/detail.html'
 
   def get_queryset(self):
-    # exclude future questions
-    return Question.objects.filter(pub_date__lte=timezone.now())
+    # include future questions only for admins
+    if isAdmin(self):
+      return Question.objects.all()
+    else :
+      return Question.objects.filter(pub_date__lte=timezone.now())
 
 class ResultsView(generic.DetailView):
   model = Question
   template_name = 'polls/results.html'
 
   def get_queryset(self):
-    # exclude future questions
-    return Question.objects.filter(pub_date__lte=timezone.now())
+    # include future questions only for admins
+    if isAdmin(self):
+      return Question.objects.all()
+    else :
+      return Question.objects.filter(pub_date__lte=timezone.now())
 
 
 def vote(request, question_id):
@@ -73,3 +83,7 @@ def vote(request, question_id):
 
     return HttpResponseRedirect(reverse('polls:results', args=(p.id,)))
   return HttpResponse("You're voting on question %s." % question_id)
+
+
+def isAdmin(request):
+  return request.request.user.is_authenticated() and request.request.user.is_superuser

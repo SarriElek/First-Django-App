@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 import datetime
 import logging
 
+from django.contrib.auth.models import User
 from django.utils import timezone
 from django.core.urlresolvers import reverse
 from django.test import TestCase
@@ -47,6 +48,14 @@ def create_choice(question, choice_text):
 
 class QuestionViewTests(TestCase):
 
+  def setUp(self):
+    self.password = "testpassword"
+    self.my_admin = User.objects.create_superuser('myadmin', 'myemail@test.com', self.password)
+
+  def tearDown(self):
+    del self.password
+    del self.my_admin
+
   def test_index_view_with_no_questions(self):
     # if no questions exist, an appropiate message should be displayed
     response = self.client.get(reverse('polls:index'))
@@ -62,14 +71,26 @@ class QuestionViewTests(TestCase):
         response.context['latest_question_list'],['<Question: Past question.>']
       )
 
-  def test_index_view_with_a_future_question(self):
+  def test_index_view_with_a_future_question_user(self):
     # questions with a pub_date in the future, should not be displayed on the index page
     create_question(question_text="Future question.", days=30)
     response = self.client.get(reverse('polls:index'))
     self.assertContains(response, "No polls are available.", status_code=200)
     self.assertQuerysetEqual(response.context['latest_question_list'], [])
 
-  def test_index_view_with_future_question_and_past_question(self):
+  def test_index_view_with_a_future_question_admin(self):
+    # create an admin user and login
+    login = self.client.login(username=self.my_admin.username, password=self.password)
+    self.assertTrue(login)
+    # questions with a pub_date in the future, should be displayed on the index page
+    create_question(question_text="Future question.", days=30)
+    response = self.client.get(reverse('polls:index'))
+    self.assertQuerysetEqual(
+        response.context['latest_question_list'],
+        ['<Question: Future question.>']
+      )
+
+  def test_index_view_with_future_question_and_past_question_user(self):
     # only past questions should be displayed
     create_question(question_text="Past question.", days=-30)
     create_question(question_text="Future question.", days=30)
@@ -77,6 +98,19 @@ class QuestionViewTests(TestCase):
     self.assertQuerysetEqual(
         response.context['latest_question_list'],
         ['<Question: Past question.>']
+      )
+
+  def test_index_view_with_future_question_and_past_question_admin(self):
+    # create an admin user and login
+    login = self.client.login(username=self.my_admin.username, password=self.password)
+    self.assertTrue(login)
+    # past and future questions should be displayed
+    create_question(question_text="Past question.", days=-30)
+    create_question(question_text="Future question.", days=30)
+    response = self.client.get(reverse('polls:index'))
+    self.assertQuerysetEqual(
+        response.context['latest_question_list'],
+        ['<Question: Future question.>', '<Question: Past question.>']
       )
 
   def test_index_view_with_two_past_questions(self):
